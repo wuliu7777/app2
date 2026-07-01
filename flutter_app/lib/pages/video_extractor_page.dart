@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../api/video_api.dart';
 import 'video_player_page.dart';
+import '../services/download_service.dart';
 
 class VideoExtractorPage extends StatefulWidget {
   const VideoExtractorPage({super.key});
@@ -125,13 +126,50 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.download),
-                    label: const Text('下载保存'),
-                    onPressed: () {
-                      // TODO: Download logic
-                    },
-                  ),
+                  child: _isDownloading 
+                  ? Column(
+                      children: [
+                        LinearProgressIndicator(value: _downloadProgress),
+                        Text('\%'),
+                      ],
+                    )
+                  : ElevatedButton.icon(
+                      icon: const Icon(Icons.download),
+                      label: const Text('下载保存'),
+                      onPressed: () async {
+                        setState(() {
+                          _isDownloading = true;
+                          _downloadProgress = 0.0;
+                        });
+                        try {
+                          final service = DownloadService();
+                          await service.downloadAndSave(
+                            result.videoUrl, 
+                            "video_\",
+                            (received, total) {
+                              if (total != -1) {
+                                setState(() {
+                                  _downloadProgress = received / total;
+                                });
+                              }
+                            }
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下载成功，已保存至相册/系统下载目录')));
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载失败: $e')));
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isDownloading = false;
+                            });
+                          }
+                        }
+                      },
+                    ),
                 ),
               ],
             ),
