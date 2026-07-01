@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../api/video_api.dart';
 import 'video_player_page.dart';
 import '../services/download_service.dart';
@@ -130,7 +130,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                   ? Column(
                       children: [
                         LinearProgressIndicator(value: _downloadProgress),
-                        Text('\%'),
+                        Text('${(_downloadProgress * 100).toStringAsFixed(1)}%'),
                       ],
                     )
                   : ElevatedButton.icon(
@@ -145,7 +145,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                           final service = DownloadService();
                           await service.downloadAndSave(
                             result.videoUrl, 
-                            "video_\",
+                            "video_`${DateTime.now().millisecondsSinceEpoch}",
                             (received, total) {
                               if (total != -1) {
                                 setState(() {
