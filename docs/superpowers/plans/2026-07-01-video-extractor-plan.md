@@ -14,13 +14,22 @@
 
 当前后端实现仍以 `yt-dlp` 为主；早期说明里的“双引擎”属于目标方向，不应当当作已完成能力。若继续出现平台兼容问题，下一步应先记录后端 `detail` 错误，再评估是否加入第二解析引擎或平台专用解析器。
 
+2026-07-02 追加：先按用户选择聚焦 B 站。`backend/main.py` 已增加 B 站专用路径：识别 B 站 URL、解析 BV 号、调用 B 站 view/playurl API、通过 `/api/stream` 后端代理输出可播放地址。这样可以绕开前端直连 B 站 CDN 时缺少 `Referer` 的问题。
+
+当前 B 站支持范围：
+
+- 支持 `www.bilibili.com/video/BV...`。
+- 支持 `b23.tv` 短链跳转。
+- 优先使用 B 站返回的 `durl` 单文件视频流。
+- 暂不支持只有 DASH 分离音视频流的合流播放。
+
 运行验证：
 
 ```powershell
 python -m unittest backend.test_main
 ```
 
-预期结果：`Ran 3 tests ... OK`。
+预期结果：`Ran 5 tests ... OK`。
 
 ---
 
