@@ -23,10 +23,15 @@ class ExtractRequest(BaseModel):
     url_text: str
 
 
+TRAILING_URL_PUNCTUATION = ".,;:!?)]}'\"，。；：！？）】》、"
+
+
 def find_first_url(text: str) -> str | None:
-    pattern = re.compile(r"https?://[^\s]+")
+    pattern = re.compile(r"https?://[^\s，。；：！？）】》]+")
     match = pattern.search(text)
-    return match.group(0) if match else None
+    if not match:
+        return None
+    return match.group(0).strip(TRAILING_URL_PUNCTUATION)
 
 
 @app.get("/")
@@ -48,6 +53,14 @@ def extract_video(request: ExtractRequest):
         "nocheckcertificate": True,
         "format": "best[ext=mp4]/best",
         "skip_download": True,
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/126.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        },
     }
 
     try:

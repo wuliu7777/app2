@@ -8,6 +8,20 @@
 
 **Tech Stack:** Flutter, Dart, Python, FastAPI, uvicorn
 
+## 2026-07-02 Maintenance Update
+
+真实联调中发现“解析失败”并非前端按钮失效，而是后端 URL 提取规则过宽：平台分享文案里的中文逗号、句号、右括号和后续说明文字会被一起传给 `yt-dlp`。已新增 `backend/test_main.py` 回归测试，并修正 `backend/main.py` 的 `find_first_url()`。
+
+当前后端实现仍以 `yt-dlp` 为主；早期说明里的“双引擎”属于目标方向，不应当当作已完成能力。若继续出现平台兼容问题，下一步应先记录后端 `detail` 错误，再评估是否加入第二解析引擎或平台专用解析器。
+
+运行验证：
+
+```powershell
+python -m unittest backend.test_main
+```
+
+预期结果：`Ran 3 tests ... OK`。
+
 ---
 
 ### Task 1: Initialize Flutter Project
