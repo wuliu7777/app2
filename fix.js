@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿const fs = require('fs');
+const content = "import 'package:flutter/material.dart';
 import '../api/video_api.dart';
 import 'video_player_page.dart';
 import '../services/download_service.dart';
@@ -66,7 +67,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
               controller: _urlController,
               maxLines: 4,
               decoration: const InputDecoration(
-                hintText: '请在此粘贴视频链接\n支持混合文本',
+                hintText: '请在此粘贴视频链接\\n支持混合文本',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -130,7 +131,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                   ? Column(
                       children: [
                         LinearProgressIndicator(value: _downloadProgress),
-                        Text('${(_downloadProgress * 100).toStringAsFixed(1)}%'),
+                        Text('\\\\\\%'),
                       ],
                     )
                   : ElevatedButton.icon(
@@ -145,7 +146,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                           final service = DownloadService();
                           await service.downloadAndSave(
                             result.videoUrl, 
-                            "video_`${DateTime.now().millisecondsSinceEpoch}",
+                            'video_\\\\\',
                             (received, total) {
                               if (total != -1) {
                                 setState(() {
@@ -159,7 +160,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
                           }
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载失败: $e')));
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('下载失败: \\\\\')));
                           }
                         } finally {
                           if (mounted) {
@@ -179,3 +180,5 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> {
     );
   }
 }
+";
+fs.writeFileSync('.worktrees/feature-video-extractor/flutter_app/lib/pages/video_extractor_page.dart', content, 'utf8');

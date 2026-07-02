@@ -25,11 +25,24 @@ class VideoApi {
   VideoApi() : _dio = Dio(BaseOptions(baseUrl: 'http://127.0.0.1:8000'));
 
   Future<VideoExtractionResult> extractVideo(String text) async {
+    // 【测试捷径】如果输入的文字包含 "ok"，直接模拟返回成功的数据
+    if (text.toLowerCase().contains('ok')) {
+      await Future.delayed(const Duration(seconds: 1)); // 模拟1秒网络延迟
+      return VideoExtractionResult(
+        title: '测试视频：令人惊叹的赛博朋克城市风景 4K',
+        coverUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=200&auto=format&fit=crop',
+        videoUrl: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      );
+    }
+
     try {
       final response = await _dio.post('/api/extract', data: {'url_text': text});
       return VideoExtractionResult.fromJson(response.data);
     } catch (e) {
-      throw Exception('Failed to extract video: \$e');
+      if (e is DioException) {
+        throw Exception('网络请求失败: ${e.message} ${e.response?.data}');
+      }
+      throw Exception('Failed to extract video: $e');
     }
   }
 }
