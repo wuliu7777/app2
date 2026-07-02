@@ -98,6 +98,9 @@
 
 ### 9.4 抖音实现记录
 *   支持域名：`www.douyin.com`、`v.douyin.com` 等 `douyin.com` 子域。
-*   `v.douyin.com` 短链会先由后端跟随跳转，再把最终 URL 交给 `yt-dlp`。
+*   `v.douyin.com` 短链会先由后端跟随跳转。
+*   抖音解析采用两段式：先尝试 `yt-dlp`；如果失败，再抓取抖音页面中的 `RENDER_DATA` / `__UNIVERSAL_DATA_FOR_REHYDRATION__` JSON，提取 `play_addr` 或 `download_addr`。
+*   抖音 CDN 播放地址通过本地 `/api/stream` 代理，并补充 `Referer`。
 *   后端返回 `platform: douyin`，便于前端或日志区分平台。
-*   回归测试覆盖平台识别和短链跳转后调用解析器。
+*   回归测试覆盖平台识别、短链跳转后调用解析器、页面 JSON 兜底解析。
+*   前端已透传后端 `detail`，后续排查时可以直接看到平台失败原因。

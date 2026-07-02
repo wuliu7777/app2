@@ -104,6 +104,18 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> with WidgetsBin
     });
   }
 
+  String _compactError(Object error) {
+    var message = error.toString();
+    if (message.startsWith('Exception: ')) {
+      message = message.substring('Exception: '.length);
+    }
+    const maxLength = 90;
+    if (message.length > maxLength) {
+      return '${message.substring(0, maxLength)}...';
+    }
+    return message;
+  }
+
   void _onTextChanged(int index, String text) {
     if (text.contains('\n')) {
       final lines = text.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
@@ -207,7 +219,7 @@ class _VideoExtractorPageState extends State<VideoExtractorPage> with WidgetsBin
           setState(() {
             _rows[rowIndex].state = RowState.error;
           });
-          _showToast("第 ${rowIndex + 1} 行解析失败", isError: true);
+          _showToast("第 ${rowIndex + 1} 行解析失败：${_compactError(e)}", isError: true);
         }
       }
     }

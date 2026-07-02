@@ -40,9 +40,20 @@ class VideoApi {
       return VideoExtractionResult.fromJson(response.data);
     } catch (e) {
       if (e is DioException) {
-        throw Exception('网络请求失败: ${e.message} ${e.response?.data}');
+        final detail = _extractErrorDetail(e.response?.data);
+        throw Exception(detail.isNotEmpty ? detail : '网络请求失败: ${e.message}');
       }
       throw Exception('Failed to extract video: $e');
     }
+  }
+
+  String _extractErrorDetail(dynamic data) {
+    if (data is Map && data['detail'] != null) {
+      return data['detail'].toString();
+    }
+    if (data is String) {
+      return data;
+    }
+    return '';
   }
 }

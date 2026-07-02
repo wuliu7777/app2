@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import yt_dlp
+import json
 import re
 import requests
 import urllib.parse
@@ -81,6 +82,88 @@ def extract_bvid(url: str) -> str | None:
 def build_stream_proxy_url(video_url: str, referer: str = BILIBILI_REFERER) -> str:
     query = urllib.parse.urlencode({"url": video_url, "referer": referer})
     return f"http://127.0.0.1:8000/api/stream?{query}"
+
+
+def first_url_from_value(value):
+    if isinstance(value, str) and value.startswith("http"):
+        return value
+    if isinstance(value, list):
+        for item in value:
+            found = first_url_from_value(item)
+            if found:
+                return found
+    if isinstance(value, dict):
+        if "url_list" in value:
+            found = first_url_from_value(value["url_list"])
+            if found:
+                return found
+        for item in value.values():
+            found = first_url_from_value(item)
+            if found:
+                return found
+    return None
+
+
+def find_nested_value(data, wanted_keys):
+    if isinstance(data, dict):
+        for key in wanted_keys:
+            if key in data:
+                return data[key]
+        for value in data.values():
+            found = find_nested_value(value, wanted_keys)
+            if found is not None:
+                return found
+    if isinstance(data, list):
+        for item in data:
+            found = find_nested_value(item, wanted_keys)
+            if found is not None:
+                return found
+    return None
+
+
+def find_douyin_video_url(data):
+    for key in ("play_addr", "download_addr", "playAddr", "downloadAddr"):
+        value = find_nested_value(data, {key})
+        url = first_url_from_value(value)
+        if url:
+            return url
+    return None
+
+
+def find_douyin_cover_url(data):
+    for key in ("cover", "origin_cover", "dynamic_cover", "videoCover"):
+        value = find_nested_value(data, {key})
+        url = first_url_from_value(value)
+        if url:
+            return url
+    return ""
+
+
+def find_douyin_title(data):
+    value = find_nested_value(data, {"desc", "title", "caption"})
+    return value if isinstance(value, str) and value.strip() else "未命名抖音视频"
+
+
+def parse_json_script_by_id(webpage: str, script_id: str):
+    pattern = re.compile(
+        rf'<script[^>]+id=["\']{re.escape(script_id)}["\'][^>]*>(.*?)</script>',
+        re.DOTALL,
+    )
+    match = pattern.search(webpage)
+    if not match:
+        return None
+
+    raw = match.group(1).strip()
+    if not raw:
+        return None
+
+    if script_id == "RENDER_DATA":
+        raw = urllib.parse.unquote(raw)
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
 
 
 def extract_bilibili_video(target_url: str, http_client=requests):
@@ -201,10 +284,63 @@ def extract_douyin_video(target_url: str, http_client=requests, parser=None):
         source_url = resolve_redirect_url(target_url, http_client=http_client)
 
     parse = parser or (lambda url: extract_with_ytdlp(url, platform_name="抖音"))
-    result = parse(source_url)
+    try:
+        result = parse(source_url)
+    except Exception as e:
+        try:
+            result = extract_douyin_webpage_video(source_url, http_client=http_client)
+        except HTTPException as fallback_error:
+            raise HTTPException(
+                status_code=400,
+                detail=f"抖音解析失败: yt-dlp={str(e)}; 页面兜底={fallback_error.detail}",
+            )
+
     result["platform"] = "douyin"
     result["source_url"] = source_url
     return result
+
+
+def extract_douyin_aweme_id(url: str) -> str | None:
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qs(parsed.query)
+    for key in ("modal_id", "aweme_id", "item_id"):
+        if query.get(key):
+            return query[key][0]
+
+    match = re.search(r"/(?:video|note)/(\d+)", parsed.path)
+    return match.group(1) if match else None
+
+
+def extract_douyin_webpage_video(target_url: str, http_client=requests):
+    response = http_client.get(
+        target_url,
+        headers={**BROWSER_HEADERS, "Referer": DOUYIN_REFERER},
+        timeout=15,
+    )
+    response.raise_for_status()
+    webpage = response.text
+
+    candidates = [
+        parse_json_script_by_id(webpage, "RENDER_DATA"),
+        parse_json_script_by_id(webpage, "__UNIVERSAL_DATA_FOR_REHYDRATION__"),
+    ]
+
+    data = next((item for item in candidates if item), None)
+    if not data:
+        raise HTTPException(status_code=400, detail="抖音页面中没有找到可解析 JSON 数据")
+
+    video_url = find_douyin_video_url(data)
+    if not video_url:
+        raise HTTPException(status_code=400, detail="抖音页面 JSON 中没有找到播放地址")
+
+    return {
+        "title": find_douyin_title(data),
+        "cover_url": find_douyin_cover_url(data),
+        "video_url": build_stream_proxy_url(video_url, referer=target_url),
+        "source_url": target_url,
+        "platform": "douyin",
+        "aweme_id": extract_douyin_aweme_id(target_url) or "",
+    }
 
 
 @app.get("/")

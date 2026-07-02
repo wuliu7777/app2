@@ -8,7 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from main import (
     extract_bilibili_video,
     extract_bvid,
+    extract_douyin_aweme_id,
     extract_douyin_video,
+    extract_douyin_webpage_video,
     find_first_url,
     is_douyin_url,
 )
@@ -79,6 +81,24 @@ class FakeHttpClient:
         return FakeResponse("https://www.bilibili.com/video/BV1xx411c7mD/")
 
 
+class FakeTextResponse(FakeResponse):
+    def __init__(self, url, text):
+        super().__init__(url)
+        self.text = text
+
+
+class FakeDouyinHttpClient:
+    def __init__(self, page_html):
+        self.page_html = page_html
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        if url == "https://v.douyin.com/abc123/":
+            return FakeResponse("https://www.douyin.com/video/7312345678901234567")
+        return FakeTextResponse(url, self.page_html)
+
+
 class BilibiliExtractionTests(unittest.TestCase):
     def test_extracts_bvid_from_bilibili_url(self):
         self.assertEqual(
@@ -125,6 +145,51 @@ class DouyinExtractionTests(unittest.TestCase):
         self.assertEqual(parsed_urls, ["https://www.bilibili.com/video/BV1xx411c7mD/"])
         self.assertEqual(result["platform"], "douyin")
         self.assertEqual(result["title"], "抖音测试视频")
+
+    def test_extracts_aweme_id_from_douyin_url(self):
+        self.assertEqual(
+            extract_douyin_aweme_id("https://www.douyin.com/video/7312345678901234567"),
+            "7312345678901234567",
+        )
+
+    def test_extracts_douyin_video_from_render_data(self):
+        page_html = (
+            '<script id="RENDER_DATA" type="application/json">'
+            "%7B%22video%22%3A%7B%22desc%22%3A%22%E6%8A%96%E9%9F%B3%E9%A1%B5%E9%9D%A2%E8%A7%86%E9%A2%91%22%2C"
+            "%22video%22%3A%7B%22play_addr%22%3A%7B%22url_list%22%3A%5B%22https%3A%2F%2Fv26-web.douyinvod.com%2Fvideo.mp4%22%5D%7D%2C"
+            "%22cover%22%3A%7B%22url_list%22%3A%5B%22https%3A%2F%2Fexample.com%2Fcover.jpg%22%5D%7D%7D%7D%7D"
+            "</script>"
+        )
+
+        result = extract_douyin_webpage_video(
+            "https://www.douyin.com/video/7312345678901234567",
+            http_client=FakeDouyinHttpClient(page_html),
+        )
+
+        self.assertEqual(result["title"], "抖音页面视频")
+        self.assertEqual(result["cover_url"], "https://example.com/cover.jpg")
+        self.assertIn("/api/stream?", result["video_url"])
+        self.assertEqual(result["platform"], "douyin")
+
+    def test_douyin_falls_back_to_webpage_when_ytdlp_fails(self):
+        page_html = (
+            '<script id="RENDER_DATA" type="application/json">'
+            "%7B%22aweme%22%3A%7B%22desc%22%3A%22%E5%85%9C%E5%BA%95%E8%A7%86%E9%A2%91%22%2C"
+            "%22video%22%3A%7B%22download_addr%22%3A%7B%22url_list%22%3A%5B%22https%3A%2F%2Fv3-web.douyinvod.com%2Ffallback.mp4%22%5D%7D%7D%7D%7D"
+            "</script>"
+        )
+
+        def failing_parser(url):
+            raise Exception("unsupported url")
+
+        result = extract_douyin_video(
+            "https://v.douyin.com/abc123/",
+            http_client=FakeDouyinHttpClient(page_html),
+            parser=failing_parser,
+        )
+
+        self.assertEqual(result["title"], "兜底视频")
+        self.assertIn("/api/stream?", result["video_url"])
 
 
 if __name__ == "__main__":
