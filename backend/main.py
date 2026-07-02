@@ -33,6 +33,7 @@ BROWSER_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
 }
 BILIBILI_REFERER = "https://www.bilibili.com"
+DOUYIN_REFERER = "https://www.douyin.com"
 
 
 def find_first_url(text: str) -> str | None:
@@ -48,11 +49,12 @@ def is_bilibili_url(url: str) -> bool:
     return "bilibili.com" in host or host == "b23.tv"
 
 
-def resolve_bilibili_url(url: str, http_client=requests) -> str:
+def is_douyin_url(url: str) -> bool:
     host = urllib.parse.urlparse(url).netloc.lower()
-    if host != "b23.tv":
-        return url
+    return host.endswith("douyin.com")
 
+
+def resolve_redirect_url(url: str, http_client=requests) -> str:
     response = http_client.get(
         url,
         headers=BROWSER_HEADERS,
@@ -61,6 +63,14 @@ def resolve_bilibili_url(url: str, http_client=requests) -> str:
     )
     response.raise_for_status()
     return response.url
+
+
+def resolve_bilibili_url(url: str, http_client=requests) -> str:
+    host = urllib.parse.urlparse(url).netloc.lower()
+    if host != "b23.tv":
+        return url
+
+    return resolve_redirect_url(url, http_client=http_client)
 
 
 def extract_bvid(url: str) -> str | None:
@@ -137,21 +147,7 @@ def extract_bilibili_video(target_url: str, http_client=requests):
     }
 
 
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "Video extractor backend is running"}
-
-
-@app.post("/api/extract")
-def extract_video(request: ExtractRequest):
-    target_url = find_first_url(request.url_text)
-
-    if not target_url:
-        raise HTTPException(status_code=400, detail="没有找到有效链接")
-
-    if is_bilibili_url(target_url):
-        return extract_bilibili_video(target_url)
-
+def extract_with_ytdlp(target_url: str, platform_name: str = "视频"):
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -183,7 +179,7 @@ def extract_video(request: ExtractRequest):
                 video_url = usable_formats[0].get("url")
 
         if not video_url:
-            raise HTTPException(status_code=400, detail="解析成功，但没有找到可播放视频地址")
+            raise HTTPException(status_code=400, detail=f"{platform_name}解析成功，但没有找到可播放视频地址")
 
         return {
             "title": info.get("title") or "未命名视频",
@@ -195,7 +191,41 @@ def extract_video(request: ExtractRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"解析失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"{platform_name}解析失败: {str(e)}")
+
+
+def extract_douyin_video(target_url: str, http_client=requests, parser=None):
+    source_url = target_url
+    host = urllib.parse.urlparse(target_url).netloc.lower()
+    if host == "v.douyin.com":
+        source_url = resolve_redirect_url(target_url, http_client=http_client)
+
+    parse = parser or (lambda url: extract_with_ytdlp(url, platform_name="抖音"))
+    result = parse(source_url)
+    result["platform"] = "douyin"
+    result["source_url"] = source_url
+    return result
+
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Video extractor backend is running"}
+
+
+@app.post("/api/extract")
+def extract_video(request: ExtractRequest):
+    target_url = find_first_url(request.url_text)
+
+    if not target_url:
+        raise HTTPException(status_code=400, detail="没有找到有效链接")
+
+    if is_bilibili_url(target_url):
+        return extract_bilibili_video(target_url)
+
+    if is_douyin_url(target_url):
+        return extract_douyin_video(target_url)
+
+    return extract_with_ytdlp(target_url)
 
 
 @app.get("/api/stream")

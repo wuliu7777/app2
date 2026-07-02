@@ -23,13 +23,15 @@
 - 优先使用 B 站返回的 `durl` 单文件视频流。
 - 暂不支持只有 DASH 分离音视频流的合流播放。
 
+2026-07-02 追加：开始按平台逐个接入，主流平台路线为：B站、抖音、快手、小红书、西瓜视频、微博视频、YouTube、Vimeo、腾讯视频、爱奇艺、优酷、芒果TV、搜狐视频、微信视频号。抖音已新增专用入口：识别 `douyin.com` 子域，`v.douyin.com` 短链先跳转，再交给 `yt-dlp`，返回结果中标记 `platform: douyin`。
+
 运行验证：
 
 ```powershell
 python -m unittest backend.test_main
 ```
 
-预期结果：`Ran 5 tests ... OK`。
+预期结果：`Ran 7 tests ... OK`。
 
 ---
 

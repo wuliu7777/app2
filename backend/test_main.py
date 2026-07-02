@@ -5,7 +5,13 @@ import types
 
 sys.modules.setdefault("yt_dlp", types.SimpleNamespace(YoutubeDL=object))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from main import extract_bilibili_video, extract_bvid, find_first_url
+from main import (
+    extract_bilibili_video,
+    extract_bvid,
+    extract_douyin_video,
+    find_first_url,
+    is_douyin_url,
+)
 
 
 class UrlExtractionTests(unittest.TestCase):
@@ -90,6 +96,35 @@ class BilibiliExtractionTests(unittest.TestCase):
         self.assertEqual(result["cover_url"], "https://i0.hdslb.com/test.jpg")
         self.assertIn("/api/stream?", result["video_url"])
         self.assertIn("source_url", result)
+
+
+class DouyinExtractionTests(unittest.TestCase):
+    def test_identifies_douyin_urls(self):
+        self.assertTrue(is_douyin_url("https://www.douyin.com/video/123456"))
+        self.assertTrue(is_douyin_url("https://v.douyin.com/abc123/"))
+        self.assertFalse(is_douyin_url("https://www.bilibili.com/video/BV1xx411c7mD/"))
+
+    def test_douyin_short_url_resolves_before_ytdlp(self):
+        parsed_urls = []
+
+        def fake_parser(url):
+            parsed_urls.append(url)
+            return {
+                "title": "抖音测试视频",
+                "cover_url": "https://example.com/cover.jpg",
+                "video_url": "https://example.com/video.mp4",
+                "source_url": url,
+            }
+
+        result = extract_douyin_video(
+            "https://v.douyin.com/abc123/",
+            http_client=FakeHttpClient(),
+            parser=fake_parser,
+        )
+
+        self.assertEqual(parsed_urls, ["https://www.bilibili.com/video/BV1xx411c7mD/"])
+        self.assertEqual(result["platform"], "douyin")
+        self.assertEqual(result["title"], "抖音测试视频")
 
 
 if __name__ == "__main__":
